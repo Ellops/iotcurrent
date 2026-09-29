@@ -1,21 +1,21 @@
 libsodium/src/libsodium/crypto_pwhash/argon2/pwhash_argon2i.o: \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/pwhash_argon2i.c \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2-core.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/crypto_pwhash_argon2i.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/export.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/randombytes.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/utils.h
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/pwhash_argon2i.c \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2-core.h \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2.h \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/crypto_pwhash_argon2i.h \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/export.h \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/randombytes.h \
+ /opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/utils.h
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2-core.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2-core.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/argon2.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/crypto_pwhash_argon2i.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/crypto_pwhash_argon2i.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/export.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/export.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/randombytes.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/randombytes.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/utils.h:
-/home/edev/esp/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/pwhash_argon2i.c:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/include/sodium/utils.h:
+/opt/ESP8266_RTOS_SDK/components/libsodium/libsodium/src/libsodium/crypto_pwhash/argon2/pwhash_argon2i.c:

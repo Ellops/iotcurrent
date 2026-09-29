@@ -1,45 +1,45 @@
 mbedtls/library/ecp.o: \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/library/ecp.c \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/port/include/mbedtls/esp_config.h \
- /home/edev/Documents/Repositories/Projects/IoTDevices/iotcurrent/build/include/sdkconfig.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/config.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/port/include/esp_mem.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/bignum.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/threading.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_util.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_time.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/newlib/platform_include/time.h \
- /home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp_internal.h
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/library/ecp.c \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/port/include/mbedtls/esp_config.h \
+ /project/build/include/sdkconfig.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/config.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/port/include/esp_mem.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/bignum.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/threading.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_util.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_time.h \
+ /opt/ESP8266_RTOS_SDK/components/newlib/platform_include/time.h \
+ /opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp_internal.h
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/port/include/mbedtls/esp_config.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/port/include/mbedtls/esp_config.h:
 
-/home/edev/Documents/Repositories/Projects/IoTDevices/iotcurrent/build/include/sdkconfig.h:
+/project/build/include/sdkconfig.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/config.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/config.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/port/include/esp_mem.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/port/include/esp_mem.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/check_config.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/bignum.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/bignum.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/threading.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/threading.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_util.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_util.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_time.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/platform_time.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/newlib/platform_include/time.h:
+/opt/ESP8266_RTOS_SDK/components/newlib/platform_include/time.h:
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp_internal.h:
-/home/edev/esp/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/library/ecp.c:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/include/mbedtls/ecp_internal.h:
+/opt/ESP8266_RTOS_SDK/components/mbedtls/mbedtls/library/ecp.c:

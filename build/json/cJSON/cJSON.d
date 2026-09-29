@@ -1,6 +1,5 @@
-cJSON/cJSON.o: \
- /home/edev/esp/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.c \
- /home/edev/esp/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.h
+cJSON/cJSON.o: /opt/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.c \
+ /opt/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.h
 
-/home/edev/esp/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.h:
-/home/edev/esp/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.c:
+/opt/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.h:
+/opt/ESP8266_RTOS_SDK/components/json/cJSON/cJSON.c:

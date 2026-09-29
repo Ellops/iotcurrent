@@ -1,7 +1,7 @@
 #include "curr.h"
 
 float max_current = 0.0f; 
-float current_value;
+float current_value = 0.0f;
 
 void curr_task()
 {
@@ -14,13 +14,11 @@ void curr_task()
         {
             max_current = current_value;
             index = 0;
-        }
-        
-        index += 1;
+        }else{index++;}
 
-        if(index > 512)
+        if (index > 512)
         {
-            max_current = 0.0f;
+            max_current = -999.0f; 
             index = 0;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -35,7 +33,7 @@ void curr_init()
     adc_config.clk_div = 8; 
     ESP_ERROR_CHECK(adc_init(&adc_config));
     ESP_LOGI(currTAG , "ADC started\n");
-    xTaskCreate(curr_task, "curr_task", 1024, NULL, 5, NULL);
+    xTaskCreate(curr_task, "curr_task", 2048, NULL, 5, NULL);
 }
 
 double curr_read()

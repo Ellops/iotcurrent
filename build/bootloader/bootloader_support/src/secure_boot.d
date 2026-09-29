@@ -1,6 +1,6 @@
 src/secure_boot.o: \
- /home/edev/esp/ESP8266_RTOS_SDK/components/bootloader_support/src/secure_boot.c \
- /home/edev/Documents/Repositories/Projects/IoTDevices/iotcurrent/build/bootloader/../include/sdkconfig.h
+ /opt/ESP8266_RTOS_SDK/components/bootloader_support/src/secure_boot.c \
+ /project/build/bootloader/../include/sdkconfig.h
 
-/home/edev/Documents/Repositories/Projects/IoTDevices/iotcurrent/build/bootloader/../include/sdkconfig.h:
-/home/edev/esp/ESP8266_RTOS_SDK/components/bootloader_support/src/secure_boot.c:
+/project/build/bootloader/../include/sdkconfig.h:
+/opt/ESP8266_RTOS_SDK/components/bootloader_support/src/secure_boot.c:
