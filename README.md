@@ -8,7 +8,7 @@ An IoT-based current monitoring station designed for real-time AC current measur
 
 - **MCU:** ESP8266 Pro D1 Mini module
 - **Sensor:** Non-invasive AC Current Sensor (SCT-013 series)
-- **Burden Resistor:** $330\,\Omega$
+- **Burden Resistor:** $56\,\Omega$
 - **DC Offset Bias Dividers:** $2\times 10\,\text{k}\Omega$ Resistors (with decoupling capacitor)
 
 ---
