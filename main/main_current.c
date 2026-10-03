@@ -1,232 +1,245 @@
-// /* Power save Example
-
-//    This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-//    Unless required by applicable law or agreed to in writing, this
-//    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-//    CONDITIONS OF ANY KIND, either express or implied.
-// */
-
-// /*
-//    this example shows how to use power save mode
-//    set a router or a AP using the same SSID&PASSWORD as configuration of this example.
-//    start esp8266 and when it connected to AP it will enter power save mode
-// */
-// #include <stdio.h>
-
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-
-// #include "esp_system.h"
-// #include "esp_spi_flash.h"
-// #include "esp_sleep.h"
-
-// #include "nvs.h"
-// #include "nvs_flash.h"
-
-// #include "wifimod.h"
-
-// #include "mqttmod.h"
-
-// #include "curr.h"
-
-// void makefloat(float number, char* buffer)
-// {
-//    int16_t number_n = (uint16_t)(number);
-//    uint16_t number_v = 0;
-//    if(number > 0)
-//    {
-//       number_v = (uint16_t)(number*1000.0f - (float)number_n*1000.0f);
-//       if(number_v<100)
-//       {
-//          if(number_v<10)
-//          {
-//             sprintf(buffer, "%u.00%u", number_n,number_v);
-//          }
-//          else
-//          {
-//             sprintf(buffer, "%u.0%u", number_n,number_v);
-//          }   
-//       }
-//       else
-//       {
-//          sprintf(buffer, "%u.%u", number_n,number_v);  
-//       }
-//    }
-//    else
-//    {
-//       number_v = (uint16_t)((float)number_n*1000.0f - number*1000.0f);
-//       if(number_v<100)
-//       {
-//          if(number_v<10)
-//          {
-//             sprintf(buffer, "-%u.00%u", number_n,number_v);
-//          }
-//          else
-//          {
-//             sprintf(buffer, "-%u.0%u", number_n,number_v);
-//          }
-//       }
-//       else
-//       {
-//          sprintf(buffer, "-%u.%u", number_n,number_v);  
-//       }
-//    }
-// }
-
-// static const char *mTAG = "Main";
-
-// void app_main(void)
-// {
-//    ESP_ERROR_CHECK(nvs_flash_init());
-   
-//    //ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
-//    // wifi_init_sta();
-   
-//    curr_init();
-
-//    //esp_sleep_enable_timer_wakeup(10000000);
-//    //esp_wifi_stop();
-//    //esp_power_consumption_info(true);
-
-//    // esp_mqtt_client_handle_t mclient;
-//    // mclient = mqtt_app_start();
-//    int msg_id;
-//    char buffer[8];
-//    char pbuffer[8];
-
-
-//    while(true)
-//    {
-//       float current = max_current*0.707;
-//       makefloat(current,buffer);
-//       float potency = current*220;
-//       makefloat(potency,pbuffer);
-
-//       // const char *msge = buffer;
-//       // msg_id = esp_mqtt_client_publish(mclient, "/inside/table/current", msge, 0, 1, 0);
-
-//       // const char *msge2 = pbuffer;
-//       // msg_id = esp_mqtt_client_publish(mclient, "/inside/table/potency", msge2, 0, 1, 0);
-
-//       ESP_LOGI(mTAG, "Corrente: %s",buffer);
-//       ESP_LOGI(mTAG, "Potencia: %s",pbuffer);
-      
-//       vTaskDelay(pdMS_TO_TICKS(1000));
-//       //printf("Entering Light Sleep Mode\n");
-//       //esp_light_sleep_start();
-//       //esp_power_consumption_info(false);
-//    }
-// }
-
 #include <stdio.h>
-#include <math.h>
-#include "esp_log.h"
-#include "driver/adc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_log.h"
+#include "nvs_flash.h"
 
-static const char *TAG = "RMS_CALC";
+#include "sct013.h"
+#include "network_manager.h"
 
-// ============================================================================
-// CONFIGURAÇÕES DO CIRCUITO
-// ============================================================================
-// Fator de Ganho = 2000 (Relação SCT-013-000) / R_burden
-// Exemplo para R_burden = 56 Ω: 2000 / 56 = 35.71
-// Exemplo para R_burden = 36.3 Ω: 2000 / 36.3 = 55.10
-#define BURDEN_RESISTOR    33.0f
-#define CT_RATIO           2000.0f
-#define CALIBRATION_FACTOR (CT_RATIO / BURDEN_RESISTOR)
+#define WIFI_SSID "secret_lab"
+#define WIFI_PASS "Osaxzp72"
 
-// Configurações do ADC do ESP8266 (0 a 3.3V com divisor interno de placa NodeMCU/Wemos)
-#define ADC_VOLTAGE_REF    3.3f
-#define ADC_RESOLUTION     1024.0f
-
-/**
- * @brief Lê a corrente RMS acumulando amostras durante uma janela de tempo.
- * 
- * @param sample_period_ms Tempo total de amostragem em milissegundos (ex: 200 ms).
- * @return float Corrente RMS medida em Ampères.
- */
-float read_current_rms(uint32_t sample_period_ms)
-{
-    uint32_t number_of_samples = 0;
-    double sum_voltage = 0.0;
-    double sum_squared_voltage = 0.0;
-    uint16_t adc_raw = 0;
-
-    TickType_t start_tick = xTaskGetTickCount();
-    TickType_t period_ticks = pdMS_TO_TICKS(sample_period_ms);
-
-    while ((xTaskGetTickCount() - start_tick) < period_ticks) 
-    {
-        if (adc_read(&adc_raw) == ESP_OK) 
-        {
-            float voltage_inst = ((float)adc_raw / ADC_RESOLUTION) * 3.22f;
-            sum_voltage += voltage_inst;
-            number_of_samples++;
-        }
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-
-    if (number_of_samples == 0) return 0.0f;
-
-    float dynamic_dc_offset = (float)(sum_voltage / number_of_samples);
-
-    start_tick = xTaskGetTickCount();
-    uint32_t rms_samples = 0;
-
-    while ((xTaskGetTickCount() - start_tick) < period_ticks) 
-    {
-        if (adc_read(&adc_raw) == ESP_OK) 
-        {
-            float voltage_inst = ((float)adc_raw / ADC_RESOLUTION) * 3.22f;
-            float voltage_ac = voltage_inst - dynamic_dc_offset;
-
-            sum_squared_voltage += (double)(voltage_ac * voltage_ac);
-            rms_samples++;
-        }
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-
-    if (rms_samples == 0) return 0.0f;
-
-    double mean_squared_voltage = sum_squared_voltage / (double)rms_samples;
-    float v_rms = (float)sqrt(mean_squared_voltage);
-    float i_rms = v_rms * CALIBRATION_FACTOR;
-
-    return i_rms;
-}
-
-void rms_task(void *pvParameters)
-{
-    ESP_LOGI(TAG, "Iniciando monitoramento de corrente RMS...");
-
-    while (1) 
-    {
-      // Lê a corrente acumulando amostras durante 200ms
-      float current_rms = read_current_rms(200);
-
-      int integer_part = (int)current_rms;
-      int fractional_part = (int)((current_rms - integer_part) * 100);
-
-      // Garante que valores negativos no fracionário fiquem positivos para exibição
-      if (fractional_part < 0) fractional_part = -fractional_part;
-
-      ESP_LOGI(TAG, "Corrente RMS: %d.%02d A", integer_part, fractional_part);
-      // Aguarda 1 segundo antes da próxima medição
-      vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
+static const char *TAG = "MAIN_APP";
 
 void app_main(void)
 {
-    // Inicialização do ADC
-    adc_config_t adc_config;
-    adc_config.mode = ADC_READ_TOUT_MODE;
-    adc_config.clk_div = 8;
-    ESP_ERROR_CHECK(adc_init(&adc_config));
+    // 1. Inicializa NVS (Exigido pelo Wi-Fi)
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
-    // Aumentado a pilha para 2048/3072 bytes por causa das operações de float e ESP_LOGI
-    xTaskCreate(rms_task, "rms_task", 3072, NULL, 5, NULL);
+    // 2. Inicializa Conectividade via Componente
+    network_wifi_init(WIFI_SSID, WIFI_PASS);
+    network_mdns_init("esp8266_000", "ESP8266 Power Monitor");
+    network_webserver_start();
+
+    ESP_LOGI(TAG, "Rede configurada! Iniciando loop principal de medição...");
+
+    sct013_config_t sensor_cfg = SCT013_CONFIG_DEFAULT();
+    sensor_cfg.grid_voltage_rms = 220.0f;
+    sensor_cfg.power_factor = 0.95f;
+    ESP_ERROR_CHECK(sct013_init(&sensor_cfg));
+
+    sct013_metrics_t metrics;
+
+    while (1) {
+        sct013_get_metrics(&metrics);
+
+        int i_p = (int)metrics.current_rms;
+        int i_f = (int)((metrics.current_rms - i_p) * 100);
+
+        int p_act = (int)metrics.power_active;
+        int kwh_p = (int)metrics.energy_kwh;
+        int kwh_f = (int)((metrics.energy_kwh - kwh_p) * 1000);
+
+        ESP_LOGI(TAG, "[Medição] Corrente: %d.%02d A | Potência Ativa: %d W | Consumo: %d.%03d kWh",
+                 i_p, (i_f < 0 ? -i_f : i_f),
+                 p_act,
+                 kwh_p, (kwh_f < 0 ? -kwh_f : kwh_f));
+
+        vTaskDelay(pdMS_TO_TICKS(3000));
+    }
 }
+
+// #include <stdio.h>
+// #include <string.h>
+// #include "esp_log.h"
+// #include "tcpip_adapter.h"
+// #include "esp_wifi.h"
+// #include "esp_event.h"
+// #include "esp_system.h"
+// #include "esp_ota_ops.h"
+// #include "esp_http_client.h"
+// #include <esp_http_server.h>
+// #include "ota_update.h"
+// #include "esp_https_ota.h"
+// #include "nvs_flash.h"
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+// #include "freertos/event_groups.h"
+// #include "lwip/opt.h"
+// #include "lwip/ip_addr.h"
+// #include "lwip/ip6_addr.h"
+// #include "lwip/api.h"
+// #include "sct013.h"
+// #include "mdns.h"
+
+// #define WIFI_SSID      "secret_lab"
+// #define WIFI_PASS      "Osaxzp72"
+// #define OTA_URL        "http://192.168.1.112:8070/iot_current_station.bin"
+
+
+// void start_mdns_service(void)
+// {
+//     // Inicializa o serviço mDNS
+//     ESP_ERROR_CHECK(mdns_init());
+//     // Define o hostname da placa na rede -> esp8266.local
+//     ESP_ERROR_CHECK(mdns_hostname_set("esp8266_000"));
+//     // Define o nome de exibição/instância
+//     ESP_ERROR_CHECK(mdns_instance_name_set("ESP8266 Power Monitor"));
+
+//     ESP_LOGI("MDNS", "mDNS iniciado! Acesse via: http://esp8266.local");
+// }
+
+
+// static const char *TAG = "MAIN_APP";
+// static EventGroupHandle_t s_wifi_event_group;
+// const int WIFI_CONNECTED_BIT = BIT0;
+
+// static esp_err_t event_handler(void *ctx, system_event_t *event)
+// {
+//     switch(event->event_id) {
+//     case SYSTEM_EVENT_STA_START:
+//         esp_wifi_connect();
+//         break;
+//     case SYSTEM_EVENT_STA_GOT_IP:
+//         ESP_LOGI(TAG, "Wi-Fi Conectado. IP: " IPSTR, IP2STR(&event->event_info.got_ip.ip_info.ip));
+//         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+//         break;
+//     case SYSTEM_EVENaT_STA_DISCONNECTED:
+//         ESP_LOGW(TAG, "Wi-Fi desconectado, reconectando...");
+//         esp_wifi_connect();
+//         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+//         break;
+//     default:
+//         break;
+//     }
+//     return ESP_OK;
+// }
+
+// void wifi_init_sta(void)
+// {
+//     s_wifi_event_group = xEventGroupCreate();
+
+//     // Inicialização legada do TCP/IP Adapter no ESP8266
+//     tcpip_adapter_init();
+
+//     // Event Loop legado
+//     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
+
+//     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+//     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+//     wifi_config_t wifi_config = {
+//         .sta = {
+//             .ssid = WIFI_SSID,
+//             .password = WIFI_PASS,
+//         },
+//     };
+
+//     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+//     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+//     ESP_ERROR_CHECK(esp_wifi_start());
+
+//     ESP_LOGI(TAG, "Aguardando conexão Wi-Fi...");
+//     xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+// }
+
+// static esp_err_t update_post_handler(httpd_req_t *req)
+// {
+//     char buf[128];
+//     int ret, remaining = req->content_len;
+
+//     if (remaining >= sizeof(buf)) {
+//         httpd_resp_set_status(req, "400 Bad Request");
+//         const char *err_msg = "Payload muito grande";
+//         httpd_resp_send(req, err_msg, strlen(err_msg));
+//         return ESP_FAIL;
+//     }
+
+//     ret = httpd_req_recv(req, buf, remaining);
+//     if (ret <= 0) {
+//         return ESP_FAIL;
+//     }
+//     buf[ret] = '\0';
+
+//     ESP_LOGI("SERVER", "Recebida URL para OTA: %s", buf);
+
+//     // Dispara a task OTA em background
+//     esp_err_t err = ota_update_start(buf);
+//     if (err == ESP_OK) {
+//         const char *resp_str = "Processo de OTA iniciado com sucesso!";
+//         httpd_resp_send(req, resp_str, strlen(resp_str));
+//     } else {
+//         httpd_resp_set_status(req, "500 Internal Server Error");
+//         const char *err_msg = "Falha ao iniciar OTA";
+//         httpd_resp_send(req, err_msg, strlen(err_msg));
+//     }
+
+//     return ESP_OK;
+// }
+
+// void start_webserver(void)
+// {
+//     httpd_handle_t server = NULL;
+//     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+//     if (httpd_start(&server, &config) == ESP_OK) {
+//         httpd_uri_t update_uri = {
+//             .uri      = "/update",
+//             .method   = HTTP_POST,
+//             .handler  = update_post_handler,
+//             .user_ctx = NULL
+//         };
+//         httpd_register_uri_handler(server, &update_uri);
+//     }
+// }
+
+
+// void app_main(void)
+// {
+//     // Inicializa NVS para salvar dados de Wi-Fi e OTA
+//     esp_err_t ret = nvs_flash_init();
+//     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+//         ESP_ERROR_CHECK(nvs_flash_erase());
+//         ret = nvs_flash_init();
+//     }
+//     ESP_ERROR_CHECK(ret);
+
+//     // Inicializa Wi-Fi
+//     wifi_init_sta();
+    
+//     start_mdns_service();
+//     start_webserver();
+
+//     // Inicializa Sensor SCT-013
+//     sct013_config_t sensor_cfg = SCT013_CONFIG_DEFAULT();
+//     sensor_cfg.grid_voltage_rms = 220.0f;
+//     sensor_cfg.power_factor = 0.95f;
+//     ESP_ERROR_CHECK(sct013_init(&sensor_cfg));
+
+//     sct013_metrics_t metrics;
+
+
+//     while (1) {
+//         sct013_get_metrics(&metrics);
+
+//         int i_p = (int)metrics.current_rms;
+//         int i_f = (int)((metrics.current_rms - i_p) * 100);
+
+//         int p_act = (int)metrics.power_active;
+//         int kwh_p = (int)metrics.energy_kwh;
+//         int kwh_f = (int)((metrics.energy_kwh - kwh_p) * 1000);
+
+//         ESP_LOGI(TAG, "[Medição] Corrente: %d.%02d A | Potência Ativa: %d W | Consumo: %d.%03d kWh",
+//                  i_p, (i_f < 0 ? -i_f : i_f),
+//                  p_act,
+//                  kwh_p, (kwh_f < 0 ? -kwh_f : kwh_f));
+
+//         vTaskDelay(pdMS_TO_TICKS(3000));
+//     }
+// }
