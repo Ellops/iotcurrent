@@ -1,6 +1,8 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
+
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event_loop.h"
@@ -23,6 +25,33 @@
 static const char *TAG = "NET_MGR";
 static EventGroupHandle_t s_wifi_event_group;
 const int WIFI_CONNECTED_BIT = BIT0;
+
+#define MDNS_HEARTBEAT_INTERVAL_MS 30000
+
+
+static void mdns_heartbeat_task(void *pvParameters)
+{
+    ESP_LOGI("mDNS_TASK", "Task mDNS Hear   tbeat iniciada.");
+
+    while (1) {
+        // 1. Desativa temporariamente o sleep para garantir transmissão limpa do pacote RF
+        esp_wifi_set_ps(WIFI_PS_NONE);
+
+        // 2. Anuncia/atualiza os serviços HTTP no mDNS
+        mdns_service_add("ESP8266 WebServer", "_http", "_tcp", 80, NULL, 0);
+
+        // 3. Aguarda um pequeno intervalo para o rádio concluir a transmissão multicast
+        vTaskDelay(pdMS_TO_TICKS(150));
+
+        // 4. Retorna para o modo Light Sleep de economia de energia
+        esp_wifi_set_ps(ESP_LIGHT_SLEEP);
+
+        // Aguarda até o próximo ciclo de keep-alive (30s)
+        vTaskDelay(pdMS_TO_TICKS(MDNS_HEARTBEAT_INTERVAL_MS));
+    }
+
+    vTaskDelete(NULL);
+}
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
@@ -79,6 +108,16 @@ esp_err_t network_mdns_init(const char *hostname, const char *instance_name)
     ESP_ERROR_CHECK(mdns_instance_name_set(instance_name));
 
     ESP_LOGI(TAG, "mDNS iniciado! Hostname: http://%s.local", hostname);
+
+    xTaskCreate(
+        mdns_heartbeat_task,   // Função da task
+        "mdns_hb_task",        // Nome identificador
+        2048,                  // Tamanho da Stack (bytes)
+        NULL,                  // Parâmetro de entrada
+        1,                     // Prioridade baixa (1)
+        NULL                   // Handle da task (opcional)
+    );
+    
     return ESP_OK;
 }
 
@@ -152,4 +191,28 @@ void network_sntp_init(void)
     // Configura o fuso horário (Exemplo: Brasil UTC-3)
     setenv("TZ", "BRT3BRST,M10.3.0/0,M2.3.0/0", 1);
     tzset();
+
+    // --- BLOQUEIO ATÉ SINCRONIZAR HORÁRIO ---
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+    int retry = 0;
+    const int retry_count = 30; // Aguarda até 30 segundos (30 x 1s)
+
+    while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry <= retry_count) {
+        ESP_LOGI(TAG, "Aguardando sincronização do relógio do sistema (%d/%d)...", retry, retry_count);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    // Atualiza a variável com o horário corrente após sair do loop
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    if (timeinfo.tm_year < (2016 - 1900)) {
+        ESP_LOGW(TAG, "Falha ao obter horário via NTP (Timeout). O sistema continuará com timestamp desatualizado.");
+    } else {
+        char strftime_buf[64];
+        strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+        ESP_LOGI(TAG, "Horário sincronizado com sucesso: %s", strftime_buf);
+    }
 }
+

@@ -6,6 +6,7 @@
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
 #include "ota_update.h"
+#include "esp_wifi.h"
 
 #define BUFFSIZE 1024
 static const char *TAG = "OTA_UPDATE";
@@ -19,6 +20,13 @@ bool ota_update_is_running(void)
 {
     return s_ota_in_progress;
 }
+
+void disable_sleep_for_ota(void)
+{
+    ESP_LOGI("OTA", "Desativando Light Sleep para garantir estabilidade da gravação OTA...");
+    esp_wifi_set_ps(WIFI_PS_NONE); // Desliga a economia de energia
+}
+
 
 static void ota_task(void *pvParameter)
 {
@@ -123,6 +131,7 @@ exit:
 
 esp_err_t ota_update_start(const char *url)
 {
+    disable_sleep_for_ota();
     if (s_ota_in_progress) {
         ESP_LOGW(TAG, "Aviso: Atualização OTA já está em andamento");
         return ESP_ERR_INVALID_STATE;

@@ -22,9 +22,9 @@
 static const char *TAG = "MAIN_APP";
 
 
-#define DEADBAND_THRESHOLD_AMPS  0.5f   // Variação mínima em Amperes para disparar o evento
-#define HEARTBEAT_TIMEOUT_SEC    300    // Tempo máximo (5 min) para forçar um envio se nada mudar
-#define SAMPLE_INTERVAL_MS       2000   // Intervalo de leitura do ADC (2 segundos)
+#define DEADBAND_THRESHOLD_AMPS  0.5f
+#define HEARTBEAT_TIMEOUT_SEC    300
+#define SAMPLE_INTERVAL_MS       2000
 
 // Variáveis de controle de estado
 static float g_last_recorded_current = -1.0f;
@@ -57,7 +57,6 @@ static bool should_record_measurement(float current_rms, time_t current_time){
     // Nenhuma condição de disparo foi atingida
     return false;
 }
-
 
 void app_main(void){
 

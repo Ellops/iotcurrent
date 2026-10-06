@@ -21,6 +21,6 @@ esp_err_t network_webserver_start(void);
 /**
  * @brief Inicializa o sntp.
  */
-void network_sntp_init(void);
+void network_sntp_init(void);  
 
 #endif // NETWORK_MANAGER_H
