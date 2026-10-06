@@ -1,45 +1,66 @@
 #include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-
+#include <math.h>
 #include <time.h>
 #include <sys/time.h>
-#include "lwip/apps/sntp.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "esp_log.h"
+#include "nvs_flash.h"
 
 #include "sct013.h"
 #include "network_manager.h"
 #include "data_store.h"
+
+#include "esp_wifi.h"
+#include "esp_system.h"
 
 #define WIFI_SSID "secret_lab"
 #define WIFI_PASS "Osaxzp72"
 
 static const char *TAG = "MAIN_APP";
 
-static void initialize_sntp(void)
-{
-    ESP_LOGI("RTC", "Inicializando SNTP...");
-    
-    // Define o modo como POLL
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    
-    // Configura os servidores NTP
-    sntp_setservername(0, "pool.ntp.org");
-    sntp_setservername(1, "time.google.com");
-    
-    // Inicializa o serviço SNTP
-    sntp_init();
 
-    // Configura o fuso horário (Exemplo: Brasil UTC-3)
-    setenv("TZ", "BRT3BRST,M10.3.0/0,M2.3.0/0", 1);
-    tzset();
+#define DEADBAND_THRESHOLD_AMPS  0.5f   // Variação mínima em Amperes para disparar o evento
+#define HEARTBEAT_TIMEOUT_SEC    300    // Tempo máximo (5 min) para forçar um envio se nada mudar
+#define SAMPLE_INTERVAL_MS       2000   // Intervalo de leitura do ADC (2 segundos)
+
+// Variáveis de controle de estado
+static float g_last_recorded_current = -1.0f;
+static time_t g_last_recorded_time = 0;
+
+/**
+ * @brief Avalia se a medição atual deve ser gravada/enviada com base na Deadband ou Heartbeat.
+ */
+static bool should_record_measurement(float current_rms, time_t current_time){
+    // 1. Primeira medição após boot: sempre grava
+    if (g_last_recorded_time == 0) {
+        return true;
+    }
+
+    // 2. Checa a variação absoluta da corrente (Deadband)
+    float delta_I = fabsf(current_rms - g_last_recorded_current);
+    if (delta_I >= DEADBAND_THRESHOLD_AMPS) {
+        ESP_LOGI("TRIGGER", "Gatilho Deadband acionado! Delta = %.2f A (Anterior: %.2fA | Atual: %.2fA)", 
+                 delta_I, g_last_recorded_current, current_rms);
+        return true;
+    }
+
+    // 3. Checa se estourou o tempo limite sem atualizações (Heartbeat)
+    if ((current_time - g_last_recorded_time) >= HEARTBEAT_TIMEOUT_SEC) {
+        ESP_LOGI("TRIGGER", "Gatilho Heartbeat acionado! Tempo decorrido: %lds", 
+                 (long)(current_time - g_last_recorded_time));
+        return true;
+    }
+
+    // Nenhuma condição de disparo foi atingida
+    return false;
 }
 
 
-void app_main(void)
-{
-    // 1. Inicializa NVS (Exigido pelo Wi-Fi)
+void app_main(void){
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -47,14 +68,15 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    data_store_init();
+    ESP_ERROR_CHECK(data_store_init());
 
     network_wifi_init(WIFI_SSID, WIFI_PASS);
     network_mdns_init("esp8266_000", "ESP8266 Power Monitor");
     network_webserver_start();
+    network_sntp_init();
 
-    initialize_sntp();
     vTaskDelay(pdMS_TO_TICKS(500));
+
     ESP_LOGI(TAG, "Rede configurada! Iniciando loop principal de medição...");
 
     sct013_config_t sensor_cfg = SCT013_CONFIG_DEFAULT();
@@ -62,59 +84,57 @@ void app_main(void)
     sensor_cfg.power_factor = 0.95f;
     ESP_ERROR_CHECK(sct013_init(&sensor_cfg));
 
+    esp_err_t err = esp_wifi_set_ps(ESP_LIGHT_SLEEP);
+    if (err == ESP_OK) {
+        ESP_LOGI("POWER", "Wi-Fi Light Sleep ativado com sucesso!");
+    } else {
+        ESP_LOGE("POWER", "Falha ao ativar Light Sleep: %d", err);
+    }
+
     sct013_metrics_t metrics;
-
+    
     while (1) {
-            // // Leitura do sensor
-            // sct013_get_metrics(&metrics);
+        // 1. Realiza a leitura da corrente RMS no sensor
+        sct013_get_metrics(&metrics);
 
-            // // Obtém o timestamp atual do RTC do ESP
-            // time_t now = 0;
-            // time(&now);
+        // 2. Obtém o timestamp do RTC
+        time_t now = 0;
+        time(&now);
 
-            // // Monta o registro com timestamp e corrente RMS
-            // measurement_record_t record = {
-            //     .timestamp = (uint32_t)now,
-            //     .current_rms = metrics.current_rms
-            // };
+        // 3. Avalia se atinge os critérios de Deadband ou Heartbeat
+        if (should_record_measurement(metrics.current_rms, now)) {
 
-            // // Salva o dado no buffer SPIFFS local
-            // esp_err_t err = data_store_write_record(&record);
-            // if (err == ESP_OK) {
-            //     ESP_LOGI("MAIN", "Medição salva com sucesso!");
-            // } else {
-            //     ESP_LOGE("MAIN", "Falha ao salvar medição localmente");
-            // }
+            measurement_record_t record = {
+                .timestamp = (uint32_t)now,
+                .current_rms = metrics.current_rms
+            };
 
-            // // --- SEÇÃO DE CHECAGEM DOS DADOS SALVOS NO LOG ---
-            // size_t total_pending = data_store_get_pending_count();
-            // ESP_LOGI("CHECK", "========================================");
-            // ESP_LOGI("CHECK", "Total de registros pendentes na Flash: %d", total_pending);
+            // Salva no buffer SPIFFS local
+            esp_err_t err = data_store_write_record(&record);
+            if (err == ESP_OK) {
+                // Atualiza as variáveis de controle do estado
+                g_last_recorded_current = metrics.current_rms;
+                g_last_recorded_time = now;
 
-            // // Formata a data atual em string legível
-            // struct tm timeinfo;
-            // localtime_r(&now, &timeinfo);
-            // char strftime_buf[64];
-            // strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+                // Formatação para exibição no LOGI
+                int i_part = (int)record.current_rms;
+                int d_part = (int)((record.current_rms - i_part) * 100);
+                if (d_part < 0) d_part = -d_part;
 
-            // ESP_LOGI("CHECK", "Última Leitura -> Data/Hora: %s | Epoch: %u | Corrente: %.2f A", 
-            //         strftime_buf, 
-            //         record.timestamp, 
-            //         record.current_rms);
-            // ESP_LOGI("CHECK", "========================================\n");
+                struct tm timeinfo;
+                localtime_r(&now, &timeinfo);
+                char strftime_buf[32];
+                strftime(strftime_buf, sizeof(strftime_buf), "%H:%M:%S", &timeinfo);
 
-            vTaskDelay(pdMS_TO_TICKS(3000));
+                ESP_LOGI("MAIN", "[REGISTRO SALVO] Hora: %s | Corrente: %d.%02d A | Pendentes: %d", 
+                        strftime_buf, i_part, d_part, data_store_get_pending_count());
+            } else {
+                ESP_LOGE("MAIN", "Falha ao gravar medição localmente!");
+            }
+        } else {
+            // Log apenas para acompanhamento de amostragem ignorada
+            ESP_LOGD("MAIN", "Medição filtrada (sem alteração significativa).");
         }
+        vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
+    }
 }
-
-
-        // int i_f = (int)((metrics.current_rms - i_p) * 100);
-
-        // int p_act = (int)metrics.power_active;
-        // int kwh_p = (int)metrics.energy_kwh;
-        // int kwh_f = (int)((metrics.energy_kwh - kwh_p) * 1000);
-
-        // ESP_LOGI(TAG, "[Medição] Corrente: %d.%02d A | Potência Ativa: %d W | Consumo: %d.%03d kWh",
-        //          i_p, (i_f < 0 ? -i_f : i_f),
-        //          p_act,
-        //          kwh_p, (kwh_f < 0 ? -kwh_f : kwh_f));

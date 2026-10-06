@@ -12,6 +12,10 @@
 #include "lwip/ip6_addr.h"
 #include "mdns.h"
 
+#include <time.h>
+#include <sys/time.h>
+#include "lwip/apps/sntp.h"
+
 #include "esp_http_server.h"
 #include "ota_update.h"
 #include "network_manager.h"
@@ -128,4 +132,24 @@ esp_err_t network_webserver_start(void)
         ESP_LOGI(TAG, "Servidor Web HTTP iniciado na porta %d", config.server_port);
     }
     return err;
+}
+
+
+void network_sntp_init(void)
+{
+    ESP_LOGI(TAG, "Inicializando SNTP...");
+    
+    // Define o modo como POLL
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    
+    // Configura os servidores NTP  
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_setservername(1, "time.google.com");
+    
+    // Inicializa o serviço SNTP
+    sntp_init();
+
+    // Configura o fuso horário (Exemplo: Brasil UTC-3)
+    setenv("TZ", "BRT3BRST,M10.3.0/0,M2.3.0/0", 1);
+    tzset();
 }

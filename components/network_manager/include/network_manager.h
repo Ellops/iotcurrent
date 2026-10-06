@@ -18,4 +18,9 @@ esp_err_t network_mdns_init(const char *hostname, const char *instance_name);
  */
 esp_err_t network_webserver_start(void);
 
+/**
+ * @brief Inicializa o sntp.
+ */
+void network_sntp_init(void);
+
 #endif // NETWORK_MANAGER_H
