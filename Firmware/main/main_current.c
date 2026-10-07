@@ -143,8 +143,6 @@ void app_main(void){
         NULL                   // Handle da Task
     );
 
-    ESP_LOGI(TAG, "FUNCIONOU O OTA...");
-
     ESP_LOGI(TAG, "Iniciando loop de amostragem de corrente (Deadband/Heartbeat)...");
 
     sct013_metrics_t metrics;

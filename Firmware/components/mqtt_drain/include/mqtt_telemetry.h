@@ -7,7 +7,7 @@
 // Configurações Padrão
 #define MQTT_BROKER_URI     "mqtt://192.168.1.100:1883"  // SUBSTITUA pelo IP do seu Ubuntu
 #define MQTT_TOPIC_METRICS  "energy/esp8266_000/metrics"
-#define MAX_BATCH_RECORDS   24                            // Máximo de itens por payload JSON
+#define MAX_BATCH_RECORDS   5                           // Máximo de itens por payload JSON
 
 /**
  * @brief Inicializa o cliente MQTT (no ESP8266 RTOS SDK utiliza mqtt_client do ESP-IDF)

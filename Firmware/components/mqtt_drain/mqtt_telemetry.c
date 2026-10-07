@@ -72,13 +72,11 @@ esp_err_t mqtt_telemetry_flush_data_store(float battery_v)
         return ESP_ERR_NOT_FOUND;
     }
 
-    // Limita o tamanho do lote para evitar estourar o heap na alocação do cJSON
     size_t items_to_send = (pending_count > MAX_BATCH_RECORDS) ? MAX_BATCH_RECORDS : pending_count;
 
     measurement_record_t records[MAX_BATCH_RECORDS];
     size_t actual_popped = 0;
 
-    // Remove do SPIFFS os itens mais antigos
     for (size_t i = 0; i < items_to_send; i++) {
         if (data_store_pop_oldest_record(&records[i]) == ESP_OK) {
             actual_popped++;
@@ -91,58 +89,75 @@ esp_err_t mqtt_telemetry_flush_data_store(float battery_v)
         return ESP_ERR_NOT_FOUND;
     }
 
-    // Construção da estrutura JSON
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        ESP_LOGE(TAG, "Falha ao criar objeto raiz do cJSON");
+    // 1. Sanitize & Converte Bateria para Partes Inteira e Decimal (Evita promover float em varargs)
+    if (battery_v < 0.0f || battery_v > 15.0f || battery_v != battery_v) { 
+        battery_v = 0.0f; // Proteção contra NaN / valores absurdos
+    }
+    int bat_int = (int)battery_v;
+    int bat_dec = (int)((battery_v - bat_int) * 100.0f);
+    if (bat_dec < 0) bat_dec = -bat_dec;
+
+    // 2. Buffer local seguro na stack
+    char json_rendered[1024];
+    size_t buf_size = sizeof(json_rendered);
+    int offset = 0;
+
+    // 3. Cabeçalho formatado com inteiros (%d.%02d) para não desalinhar a pilha Xtensa
+    int written = snprintf(json_rendered, buf_size,
+                           "{\"device_id\":\"esp8266_000\",\"battery_v\":%d.%02d,\"count\":%u,\"data\":[",
+                           bat_int, bat_dec, (unsigned int)actual_popped);
+
+    if (written < 0 || (size_t)written >= buf_size) {
+        ESP_LOGE(TAG, "Buffer estourado na escrita do cabeçalho JSON (written=%d)", written);
         goto rollback;
     }
+    offset += written;
 
-    cJSON_AddStringToObject(root, "device_id", "esp8266_000");
-    cJSON_AddNumberToObject(root, "battery_v", battery_v);
-    cJSON_AddNumberToObject(root, "count", actual_popped);
-
-    cJSON *data_array = cJSON_CreateArray();
-    if (!data_array) {
-        cJSON_Delete(root);
-        goto rollback;
-    }
-
+    // 4. Array de registros formatando Corrente em Inteiros
     for (size_t i = 0; i < actual_popped; i++) {
-        cJSON *item = cJSON_CreateObject();
-        cJSON_AddNumberToObject(item, "ts", (double)records[i].timestamp);
-        cJSON_AddNumberToObject(item, "current", records[i].current_rms);
-        cJSON_AddItemToArray(data_array, item);
+        float cur = records[i].current_rms;
+        if (cur < 0.0f || cur != cur) cur = 0.0f; // Proteção contra NaN
+        
+        int cur_int = (int)cur;
+        int cur_dec = (int)((cur - cur_int) * 100.0f);
+        if (cur_dec < 0) cur_dec = -cur_dec;
+
+        written = snprintf(json_rendered + offset, buf_size - (size_t)offset,
+                           "%s{\"ts\":%lu,\"current\":%d.%02d}",
+                           (i > 0) ? "," : "",
+                           (unsigned long)records[i].timestamp,
+                           cur_int, cur_dec);
+
+        if (written < 0 || (size_t)(offset + written) >= buf_size) {
+            ESP_LOGE(TAG, "Buffer estourado ao adicionar item %u (written=%d)", (unsigned int)i, written);
+            goto rollback;
+        }
+        offset += written;
     }
 
-    cJSON_AddItemToObject(root, "data", data_array);
-
-    char *json_rendered = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-
-    if (!json_rendered) {
-        ESP_LOGE(TAG, "Falha ao renderizar string JSON");
+    // 5. Fechamento da estrutura JSON
+    written = snprintf(json_rendered + offset, buf_size - (size_t)offset, "]}");
+    if (written < 0 || (size_t)(offset + written) >= buf_size) {
+        ESP_LOGE(TAG, "Buffer estourado ao fechar JSON (written=%d)", written);
         goto rollback;
     }
 
-    ESP_LOGI(TAG, "Enviando lote MQTT (%d registros)...", actual_popped);
+    ESP_LOGI(TAG, "Enviando lote MQTT (%u registros)...", (unsigned int)actual_popped);
 
     int msg_id = esp_mqtt_client_publish(s_mqtt_client, MQTT_TOPIC_METRICS, json_rendered, 0, 1, 0);
-    free(json_rendered);
 
     if (msg_id < 0) {
         ESP_LOGE(TAG, "Falha ao publicar mensagem via MQTT.");
         goto rollback;
     }
 
-    ESP_LOGI(TAG, "Lote enviado com sucesso (MQTT msg_id: %d). Pendentes restantes: %d", 
-             msg_id, data_store_get_pending_count());
+    ESP_LOGI(TAG, "Lote enviado com sucesso (MQTT msg_id: %d). Pendentes restantes: %u", 
+             msg_id, (unsigned int)data_store_get_pending_count());
 
     return ESP_OK;
 
 rollback:
-    // Se houve erro na montagem ou na transmissão, regrava os dados no SPIFFS para não perdê-los
-    ESP_LOGW(TAG, "Restaurando %d registros no buffer SPIFFS devido a falha...", actual_popped);
+    ESP_LOGW(TAG, "Restaurando %u registros no buffer SPIFFS devido a falha...", (unsigned int)actual_popped);
     for (size_t i = 0; i < actual_popped; i++) {
         data_store_write_record(&records[i]);
     }
