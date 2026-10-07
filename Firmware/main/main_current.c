@@ -8,13 +8,15 @@
 
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_wifi.h"
+#include "esp_system.h"
 
 #include "sct013.h"
 #include "network_manager.h"
 #include "data_store.h"
+#include "mqtt_telemetry.h"
 
-#include "esp_wifi.h"
-#include "esp_system.h"
+
 
 #define WIFI_SSID "secret_lab"
 #define WIFI_PASS "Osaxzp72"
@@ -25,6 +27,9 @@ static const char *TAG = "MAIN_APP";
 #define DEADBAND_THRESHOLD_AMPS  0.5f
 #define HEARTBEAT_TIMEOUT_SEC    300
 #define SAMPLE_INTERVAL_MS       2000
+#define FLUSH_INTERVAL_MS       (3600 * 1000) // Intervalo de 1 hora (3.600.000 ms)
+#define MAX_PENDING_THRESHOLD   20            // Dispara flush antecipado se houver 20+ registros
+#define BATTERY_MOCK_VOLTAGE    3.82f         // Substitua pela leitura analógica real da bateria
 
 // Variáveis de controle de estado
 static float g_last_recorded_current = -1.0f;
@@ -58,7 +63,46 @@ static bool should_record_measurement(float current_rms, time_t current_time){
     return false;
 }
 
+static void telemetry_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Task de telemetria inicializada com sucesso.");
+
+    while (1) {
+        // Aguarda 1 hora em estado bloqueado (permitindo Light Sleep)
+        vTaskDelay(pdMS_TO_TICKS(FLUSH_INTERVAL_MS));
+
+        size_t pending = data_store_get_pending_count();
+
+        if (pending == 0) {
+            ESP_LOGD(TAG, "Nenhum dado pendente para envio.");
+            continue;
+        }
+
+        ESP_LOGI(TAG, "Iniciando ciclo de envio (%d registros pendentes)...", pending);
+
+        // Verifica se a conexão MQTT está estabelecida
+        if (!mqtt_telemetry_is_connected()) {
+            ESP_LOGW(TAG, "MQTT desconectado. O lote permanecerá no SPIFFS até o próximo ciclo.");
+            continue;
+        }
+
+        // Drena todo o buffer em lotes
+        while (data_store_get_pending_count() > 0 && mqtt_telemetry_is_connected()) {
+            esp_err_t err = mqtt_telemetry_flush_data_store(BATTERY_MOCK_VOLTAGE);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Falha na transmissão do lote. Pausando tentativas.");
+                break;
+            }
+            
+            // Pequeno delay entre lotes para não sobrecarregar o buffer de sockets do ESP8266
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+
 void app_main(void){
+
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -74,21 +118,34 @@ void app_main(void){
     network_webserver_start();
     network_sntp_init();
 
-    vTaskDelay(pdMS_TO_TICKS(500));
-
     ESP_LOGI(TAG, "Rede configurada! Iniciando loop principal de medição...");
 
-    sct013_config_t sensor_cfg = SCT013_CONFIG_DEFAULT();
+    sct013_config_t sensor_cfg = SCT013_CONFIG_DEFAULT();   
     sensor_cfg.grid_voltage_rms = 220.0f;
     sensor_cfg.power_factor = 0.95f;
     ESP_ERROR_CHECK(sct013_init(&sensor_cfg));
 
-    esp_err_t err = esp_wifi_set_ps(ESP_LIGHT_SLEEP);
+    esp_err_t err = esp_wifi_set_ps(WIFI_PS_MODEM);
     if (err == ESP_OK) {
         ESP_LOGI("POWER", "Wi-Fi Light Sleep ativado com sucesso!");
     } else {
         ESP_LOGE("POWER", "Falha ao ativar Light Sleep: %d", err);
     }
+
+    mqtt_telemetry_init("mqtt://192.168.1.112:1883");
+
+    xTaskCreate(
+        telemetry_task,        // Função da Task
+        "telemetry_task",      // Nome para identificação
+        4096,                  // Stack depth em bytes (4KB)
+        NULL,                  // Parâmetros de entrada
+        5,                     // Prioridade da Task (moderada/baixa)
+        NULL                   // Handle da Task
+    );
+
+    ESP_LOGI(TAG, "FUNCIONOU O OTA...");
+
+    ESP_LOGI(TAG, "Iniciando loop de amostragem de corrente (Deadband/Heartbeat)...");
 
     sct013_metrics_t metrics;
     

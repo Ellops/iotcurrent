@@ -31,26 +31,24 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 static void mdns_heartbeat_task(void *pvParameters)
 {
-    ESP_LOGI("mDNS_TASK", "Task mDNS Hear   tbeat iniciada.");
+    ESP_LOGI(TAG, "Task mDNS Heartbeat iniciada.");
 
     while (1) {
-        // 1. Desativa temporariamente o sleep para garantir transmissão limpa do pacote RF
+        // 1. Desativa a economia de energia do rádio para transmissão limpa do pacote Multicast UDP 5353
         esp_wifi_set_ps(WIFI_PS_NONE);
 
-        // 2. Anuncia/atualiza os serviços HTTP no mDNS
-        mdns_service_add("ESP8266 WebServer", "_http", "_tcp", 80, NULL, 0);
+        // 2. Anuncia o serviço mDNS no ar sem recriá-lo em memória
+        mdns_service_port_set("_http", "_tcp", 80);
 
-        // 3. Aguarda um pequeno intervalo para o rádio concluir a transmissão multicast
-        vTaskDelay(pdMS_TO_TICKS(150));
+        // 3. Pequeno delay para o rádio escoar o buffer de TX
+        vTaskDelay(pdMS_TO_TICKS(300));
 
-        // 4. Retorna para o modo Light Sleep de economia de energia
-        esp_wifi_set_ps(ESP_LIGHT_SLEEP);
+        // 4. Retorna para o modo de economia de energia do Wi-Fi (Modem/Light Sleep do rádio)
+        esp_wifi_set_ps(WIFI_PS_MODEM);
 
-        // Aguarda até o próximo ciclo de keep-alive (30s)
+        // Aguarda até o próximo ciclo (30s)
         vTaskDelay(pdMS_TO_TICKS(MDNS_HEARTBEAT_INTERVAL_MS));
     }
-
-    vTaskDelete(NULL);
 }
 
 static esp_err_t event_handler(void *ctx, system_event_t *event)
@@ -107,28 +105,38 @@ esp_err_t network_mdns_init(const char *hostname, const char *instance_name)
     ESP_ERROR_CHECK(mdns_hostname_set(hostname));
     ESP_ERROR_CHECK(mdns_instance_name_set(instance_name));
 
+    // Adiciona o serviço HTTP UMA ÚNICA VEZ durante o boot
+    err = mdns_service_add(instance_name, "_http", "_tcp", 80, NULL, 0);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Falha ao adicionar serviço HTTP mDNS: %d", err);
+    }
+
     ESP_LOGI(TAG, "mDNS iniciado! Hostname: http://%s.local", hostname);
 
+    // Criação da task com stack de 3KB para evitar estourar a memória da pilha
     xTaskCreate(
-        mdns_heartbeat_task,   // Função da task
-        "mdns_hb_task",        // Nome identificador
-        2048,                  // Tamanho da Stack (bytes)
-        NULL,                  // Parâmetro de entrada
-        1,                     // Prioridade baixa (1)
-        NULL                   // Handle da task (opcional)
+        mdns_heartbeat_task,
+        "mdns_hb_task",
+        3072,
+        NULL,
+        1,
+        NULL
     );
-    
+
     return ESP_OK;
 }
 
 static esp_err_t update_post_handler(httpd_req_t *req)
 {
+    // 1. Acorda o rádio imediatamente ao engatar o handler do /update
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
     char buf[128];
     int remaining = req->content_len;
 
-    if (remaining >= sizeof(buf)) {
+    if (remaining <= 0 || remaining >= sizeof(buf)) {
         httpd_resp_set_status(req, "400 Bad Request");
-        const char *err_msg = "Payload muito grande";
+        const char *err_msg = "Tamanho do payload inválido";
         httpd_resp_send(req, err_msg, strlen(err_msg));
         return ESP_FAIL;
     }
@@ -141,17 +149,21 @@ static esp_err_t update_post_handler(httpd_req_t *req)
 
     ESP_LOGI(TAG, "Recebida URL para OTA: %s", buf);
 
+    // Responde ao cliente web antes de travar no OTA/Reboot
+    const char *resp_str = "Processo de OTA iniciado com sucesso!";
+    httpd_resp_send(req, resp_str, strlen(resp_str));
+
+    // Garante pequeno delay para enviar a resposta HTTP TCP antes da regravação de flash
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     esp_err_t err = ota_update_start(buf);
-    if (err == ESP_OK) {
-        const char *resp_str = "Processo de OTA iniciado com sucesso!";
-        httpd_resp_send(req, resp_str, strlen(resp_str));
-    } else {
-        httpd_resp_set_status(req, "500 Internal Server Error");
-        const char *err_msg = "Falha ao iniciar OTA";
-        httpd_resp_send(req, err_msg, strlen(err_msg));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Falha ao executar rotina de OTA: %d", err);
+        // Restaura economia se o OTA falhar antes de reiniciar
+        esp_wifi_set_ps(WIFI_PS_MODEM);
     }
 
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t network_webserver_start(void)
@@ -172,7 +184,6 @@ esp_err_t network_webserver_start(void)
     }
     return err;
 }
-
 
 void network_sntp_init(void)
 {

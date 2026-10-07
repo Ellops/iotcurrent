@@ -140,3 +140,4 @@ esp_err_t data_store_clear_all(void)
     ESP_LOGI(TAG, "Buffer local limpo com sucesso.");
     return ESP_OK;
 }
+
